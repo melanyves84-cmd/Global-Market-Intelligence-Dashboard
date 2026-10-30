@@ -6,6 +6,8 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+from sector_data import read_prices, weekly_completed
+from extension import (REGION_SECTORS, REGION_BENCHMARK, GICS_11, make_catalog, read_catalog, global_rotation_page, mapping_page)
 
 st.set_page_config(page_title="Global Sector Rotation",page_icon="📈",layout="wide")
 BLUE="#215F9A"
@@ -70,18 +72,11 @@ def yahoo_prices(tickers):
     return close.sort_index()
 
 def import_csv(upload):
-    df=pd.read_csv(upload)
-    if not {'Date','Ticker','Close'}.issubset(df.columns):
-        raise ValueError("CSV must have Date, Ticker, Close columns")
-    df['Date']=pd.to_datetime(df['Date'],errors='coerce')
-    df['Close']=pd.to_numeric(df['Close'],errors='coerce')
-    df=df.dropna(subset=['Date','Ticker','Close'])
-    if (df.Close<=0).any(): raise ValueError("Prices must be positive")
-    return df.pivot_table(index='Date',columns='Ticker',values='Close',aggfunc='last').sort_index()
+    return read_prices(upload)
 
 def weekly(prices):
     # W-FRI buckets: last available trading close within each week (holidays allowed).
-    return prices.resample('W-FRI').last().dropna(how='all')
+    return weekly_completed(prices).dropna(how='all')
 
 def returns_for_horizon(w, weeks):
     # Week-to-week comparison, exactly `weeks` weekly observations back where available.
@@ -112,10 +107,18 @@ with st.sidebar:
     sector_map=cfg['sectors']; benchmark=cfg['benchmark']; currency=cfg['currency']; sub_map=cfg['subsectors']
     source=st.radio('Source',['Yahoo Finance (online)','Upload daily CSV (offline)'],index=0)
     upload=st.file_uploader('CSV: Date,Ticker,Close',type='csv') if source.startswith('Upload') else None
-    page=st.radio('Page',['Market overview','Sector history','Weekly rotation','Subsector explorer','Methodology'])
-    st.caption('Yahoo Finance may be blocked. CSV mode works without external access. Sector mapping varies by region.')
+    page=st.radio('Page',['Global heatmap','Market overview','Sector history','Weekly rotation','Subsector explorer','Sector data catalog','Methodology'])
+    mapping_file=st.file_uploader('Optional: sector mapping CSV',type='csv',key='mapping')
+    try:
+        catalog=read_catalog(mapping_file)
+    except ValueError as e:
+        st.error(f'Invalid mapping file: {e}')
+        catalog=make_catalog()
+    region_map=catalog[catalog.Region==region].set_index('Sector')['Ticker'].to_dict()
+    sector_map={sector:(region_map.get(sector) or None) for sector in GICS_11}
+    st.caption('Yahoo Finance may be blocked. CSV mode accepts licensed sector-index prices with Date,Ticker,Close. Missing mappings remain unavailable.')
 
-requested=list(dict.fromkeys([benchmark]+cfg['extra']+[t for t in sector_map.values() if t]+[t for t in sub_map.values() if t]))
+requested=list(dict.fromkeys(list(REGION_BENCHMARK.values())+[t for t in catalog.Ticker.tolist() if t]+cfg['extra']+[t for t in sub_map.values() if t]))
 prices=pd.DataFrame()
 try:
     if source.startswith('Yahoo'):
@@ -125,9 +128,13 @@ try:
 except Exception as e:
     st.error(f'Data unavailable: {e}. Switch to CSV mode or verify network permission.')
 
+if page=='Sector data catalog':
+    mapping_page(catalog)
+    st.stop()
+
 if page=='Methodology':
     st.subheader('Calculation methodology')
-    st.markdown('''- **Market selector:** US uses SPY, Europe uses the STOXX Europe 600 ETF EXSA.DE, China uses the CSI 300 ETF 510300.SS. Sector ETFs are imperfect proxies, especially in Europe/China. Unmapped sectors remain unscored.\n- **Daily charts:** one observation per trading day, using daily closing prices. With `auto_adjust=True`, the online provider adjusts historical prices for distributions and splits where data permit.
+    st.markdown('''- **Market selector:** US uses SPY, Europe uses STOXX Europe 600 ETF EXSA.DE, China uses CSI 300 ETF 510300.SS. European and Chinese sector coverage requires correctly mapped series; do not interpret absent rows as zero. Unmapped sectors remain unscored.\n- **Daily charts:** one observation per trading day, using daily closing prices. With `auto_adjust=True`, the online provider adjusts historical prices for distributions and splits where data permit.
 - **Weekly rotation:** daily prices are sampled to **the last available trading close in each Friday-ending week**, avoiding fixed calendar-day assumptions around market holidays.
 - **4W / 13W:** weekly close divided by the close 4 or 13 completed weekly observations earlier, minus one.
 - **Relative return:** sector return minus SPY return in percentage points. **Rotation score:** 60% × 4-week relative return + 40% × 13-week relative return.
@@ -135,7 +142,7 @@ if page=='Methodology':
 - **Flows:** relative price performance is **not** evidence of net fund inflows. ETF flow data and index weights require separate licensed sources.
 - **Equal weight (US only):** RSP is an ETF proxy for equal-weight S&P 500; an ex-top-10 index needs independently calculated historical constituents and weights.
 - **Subsectors:** US offers the original 45 analytical groups; Europe and China show the few explicitly configured proxies and allow CSV extensions. Industry ETF proxies are not exact GICS S&P 500 subsector indices and can overlap sectors or contain non-index constituents.
-- **Incomplete weeks:** the current unfinished week may appear in the rotation view; select completed weeks for strict week-end comparisons.
+- **Incomplete weeks:** the current week is always excluded from weekly analysis, including on Friday before the close.
 - **Offline:** upload a long-format CSV containing `Date,Ticker,Close`, for example `2026-10-29,XLK,250.5`; add all tickers to be compared. No sample returns are fabricated.''')
     st.download_button('Download CSV template',f'Date,Ticker,Close\n2026-01-02,{benchmark},\n','daily_prices_template.csv')
     st.dataframe(pd.DataFrame([{'Sector':k,'ETF proxy':v or 'Not mapped'} for k,v in sector_map.items()]),hide_index=True)
@@ -148,7 +155,10 @@ prices=prices.apply(pd.to_numeric,errors='coerce').sort_index()
 prices=prices.loc[:,prices.notna().any()]
 if len(prices): st.caption(f'Data availability: {prices.index.min():%d %b %Y} – {prices.index.max():%d %b %Y} · {len(prices)} daily rows · {len(prices.columns)} tickers')
 
-if page=='Market overview':
+if page=='Global heatmap':
+    global_rotation_page(prices, catalog)
+
+elif page=='Market overview':
     st.subheader(f'{region} | Sector overview')
     st.caption('Only sectors with configured and downloaded price series are ranked; missing categories are explicitly not inferred.')
     window=st.selectbox('Performance window',['1M','3M','6M','1Y'],index=1)
@@ -165,7 +175,7 @@ if page=='Market overview':
     if summary.empty: st.warning('No configured sector prices available. Upload region-specific ETF prices or try the online provider.'); st.stop()
     c1,c2=st.columns(2)
     with c1:
-        fig=px.bar(summary,x='vs benchmark (pp)',y='Sector',orientation='h',color='vs benchmark (pp)',color_continuous_scale='RdBu',color_continuous_midpoint=0,title='Relative returns vs S&P 500')
+        fig=px.bar(summary,x='vs benchmark (pp)',y='Sector',orientation='h',color='vs benchmark (pp)',color_continuous_scale='RdBu',color_continuous_midpoint=0,title='Relative returns vs local market benchmark')
         fig.update_layout(yaxis={'categoryorder':'total ascending'},coloraxis_showscale=False)
         st.plotly_chart(fig,use_container_width=True)
     with c2:
@@ -197,8 +207,7 @@ elif page=='Weekly rotation':
     w=weekly(prices)
     choices=w.index
     only_completed=st.checkbox('Exclude current incomplete week',value=True)
-    if only_completed and len(choices) and choices[-1].date()>date.today():
-        w=w.iloc[:-1]
+    # Completed Friday-ending weeks are enforced in weekly() for reproducibility.
     score=signals(w, benchmark)
     if score.empty: st.warning('At least 14 weekly observations for SPY and sector prices are required.'); st.stop()
     out=[]
