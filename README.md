@@ -79,3 +79,31 @@ This edition retains all existing market-data, import, heatmap, weekly rotation,
 - If GitHub's web uploader does not expose hidden folders easily, create `.streamlit/config.toml` through GitHub's **Add file → Create new file** path.
 - No market observations are bundled; the application requires Yahoo Finance retrieval or a user-supplied CSV.
 - The price data feed, data quality and licensed-coverage limitations of the prior edition still apply.
+
+
+## Official European 11-industry configuration (new)
+
+Under **Market = Europe**, choose **Official STOXX industry indices (CSV)**. This uses
+the 11 **STOXX Europe 600 ICB industry indices**, not mixed thematic ETF proxies.
+The former ETF choices remain accessible with **Legacy European ETF proxies (online)**.
+Official index data must be exported from STOXX or an authorized vendor; the
+application does not redistribute licensed historical levels.
+
+On **Sector data catalog**, download `europe_stoxx_industry_template.csv`.
+Fill the `Close` values and extend the dates with valid daily histories.
+`EU_STOXX600`, `EU_S600_TECH`, etc. are **internal CSV identifiers**, not exchange tickers.
+The CSV schema is `Date,Ticker,Close`; import the 12 daily series (benchmark +
+11 industry indices) using one currency and one return convention. Index
+**price** levels cannot be compared as if they were index **total returns**.
+The 11 ICB industries do not correspond one-for-one to US GICS: especially
+Telecommunications vs Communication Services and Basic Materials vs Materials.
+
+Sources: https://stoxx.com/index/sxfinp/ and https://www.stoxx.com/help.
+STOXX notes that full historical access generally requires a license.
+
+
+## China 11-sector upgrade
+
+China now defaults to **CSI 300 GICS-style 11-sector CSV mode**. The `CN_CSI300` benchmark and `CN_CSI300_*` sector identifiers are **local CSV labels only**, NOT official CSI index codes or Yahoo Finance symbols. Download the China template from **Sector data catalog**, then fill daily `Date,Ticker,Close` records from appropriately licensed CSI 300 constituent/sector index data. Use the same currency, return convention and consistent dates for sector and benchmark. The global heatmap shows unavailable sectors as N/A.
+
+An optional **CSI 300 ETF benchmark and selected proxies (online)** mode preserves the earlier experimental ETF view. It does not provide full 11-sector coverage. Legacy CSI 300 ten-sector index codes are listed for reference only: the original scheme combined Financials and Real Estate. Source: https://www.szse.cn/disclosure/notice/general/t20070611_499843.html . The current CSI 300 factsheet breaks down holdings into 11 categories: https://oss-ch.csindex.com.cn/static/html/csindex/public/uploads/indices/detail/files/en/000300factsheeten.pdf .

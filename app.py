@@ -8,6 +8,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from sector_data import read_prices, weekly_completed
 from ui_theme import apply_theme, hero, plot
+import extension
 from extension import (REGION_SECTORS, REGION_BENCHMARK, GICS_11, make_catalog, read_catalog, global_rotation_page, mapping_page)
 
 st.set_page_config(page_title="Global Sector Rotation",page_icon="📈",layout="wide")
@@ -55,8 +56,8 @@ CHINA_SECTORS={
 "Real Estate":None,"Materials":None}
 REGIONS={
 "United States":{"benchmark":"SPY","sectors":SECTORS,"subsectors":SUBSECTORS,"currency":"USD","label":"S&P 500 (SPY)","extra":["RSP"]},
-"Europe":{"benchmark":"EXSA.DE","sectors":EUROPE_SECTORS,"subsectors":{},"currency":"EUR","label":"STOXX Europe 600 (EXSA.DE)","extra":[]},
-"China (mainland A-shares)":{"benchmark":"510300.SS","sectors":CHINA_SECTORS,"subsectors":{"Semiconductors":"512480.SS","CSI 300 Pharmaceuticals":"512010.SS"},"currency":"CNY","label":"CSI 300 (510300.SS)","extra":[]}}
+"Europe":{"benchmark":"EU_STOXX600","sectors":REGION_SECTORS["Europe"],"subsectors":{},"currency":"EUR","label":"STOXX Europe 600 official industry indices (CSV)","extra":[]},
+"China (mainland A-shares)":{"benchmark":"CN_CSI300","sectors":REGION_SECTORS["China (mainland A-shares)"],"subsectors":{"Semiconductors":"512480.SS","CSI 300 Pharmaceuticals":"512010.SS"},"currency":"CNY","label":"CSI 300 (510300.SS)","extra":[]}}
 # Country-specific mapping intentionally avoids liquidated Global X MSCI China sector ETFs.
 
 PERIODS={"1M":32,"3M":96,"6M":190,"1Y":365,"2Y":730,"3Y":1095,"4Y":1461,"5Y":1827}
@@ -108,7 +109,22 @@ with st.sidebar:
     region=st.selectbox('Market',list(REGIONS),index=0)
     cfg=REGIONS[region]
     sector_map=cfg['sectors']; benchmark=cfg['benchmark']; currency=cfg['currency']; sub_map=cfg['subsectors']
-    source=st.radio('Source',['Yahoo Finance (online)','Upload daily CSV (offline)'],index=0)
+    eu_mode = st.radio('European data method', ['Official STOXX industry indices (CSV)', 'Legacy European ETF proxies (online)'], index=0) if region == 'Europe' else 'Official STOXX industry indices (CSV)'
+    if region == 'Europe' and eu_mode.startswith('Legacy'):
+        extension.REGION_BENCHMARK['Europe'] = 'EXSA.DE'
+        active_europe = EUROPE_SECTORS
+        cfg = {**cfg, 'benchmark':'EXSA.DE', 'label':'STOXX Europe 600 ETF proxy (EXSA.DE)', 'sectors':active_europe}
+    else:
+        extension.REGION_BENCHMARK['Europe'] = 'EU_STOXX600'
+        active_europe = REGION_SECTORS['Europe']
+    cn_mode = st.radio('China data method', ['CSI 300 GICS-style 11-sector history (CSV)', 'CSI 300 ETF benchmark and selected proxies (online)'], index=0) if region.startswith('China') else ''
+    if region.startswith('China') and cn_mode.startswith('CSI 300 ETF'):
+        extension.REGION_BENCHMARK[region] = '510300.SS'
+        cfg = {**cfg, 'benchmark':'510300.SS', 'label':'CSI 300 ETF proxy (510300.SS)', 'sectors':CHINA_SECTORS}
+    elif region.startswith('China'):
+        extension.REGION_BENCHMARK[region] = 'CN_CSI300'
+    benchmark=cfg['benchmark']
+    source=st.radio('Source',['Yahoo Finance (online)','Upload daily CSV (offline)'],index=1 if (region=='Europe' and eu_mode.startswith('Official')) or (region.startswith('China') and cn_mode.startswith('CSI 300 GICS')) else 0)
     upload=st.file_uploader('CSV: Date,Ticker,Close',type='csv') if source.startswith('Upload') else None
     page=st.radio('Page',['Global heatmap','Market overview','Sector history','Weekly rotation','Subsector explorer','Sector data catalog','Methodology'])
     mapping_file=st.file_uploader('Optional: sector mapping CSV',type='csv',key='mapping')
@@ -117,11 +133,15 @@ with st.sidebar:
     except ValueError as e:
         st.error(f'Invalid mapping file: {e}')
         catalog=make_catalog()
+    if region=='Europe' and eu_mode.startswith('Legacy'):
+        catalog.loc[catalog.Region=='Europe','Ticker']=catalog.loc[catalog.Region=='Europe','Sector'].map(EUROPE_SECTORS).fillna('')
+    if region.startswith('China') and cn_mode.startswith('CSI 300 ETF'):
+        catalog.loc[catalog.Region==region,'Ticker']=catalog.loc[catalog.Region==region,'Sector'].map(CHINA_SECTORS).fillna('')
     region_map=catalog[catalog.Region==region].set_index('Sector')['Ticker'].to_dict()
     sector_map={sector:(region_map.get(sector) or None) for sector in GICS_11}
-    st.caption('Yahoo Finance may be blocked. CSV mode accepts licensed sector-index prices with Date,Ticker,Close. Missing mappings remain unavailable.')
+    st.caption('China official-style mode requires licensed or reconstructed CSI 300 GICS-classified sector histories as CSV. CN_CSI300_* are local placeholders, not real market tickers. European official mode uses imported STOXX ICB industry index levels. EU_S600_* are CSV identifiers, not Yahoo tickers. Legacy ETF mode retains the previous proxy method. Never mix price-only index levels with dividend-adjusted ETF returns.')
 
-requested=list(dict.fromkeys(list(REGION_BENCHMARK.values())+[t for t in catalog.Ticker.tolist() if t]+cfg['extra']+[t for t in sub_map.values() if t]))
+requested=list(dict.fromkeys([v for v in REGION_BENCHMARK.values() if not v.startswith(('EU_','CN_'))]+[t for t in catalog.Ticker.tolist() if t and not t.startswith(('EU_','CN_'))]+cfg['extra']+[t for t in sub_map.values() if t]))
 prices=pd.DataFrame()
 try:
     if source.startswith('Yahoo'):
@@ -137,7 +157,7 @@ if page=='Sector data catalog':
 
 if page=='Methodology':
     st.subheader('Calculation methodology')
-    st.markdown('''- **Market selector:** US uses SPY, Europe uses STOXX Europe 600 ETF EXSA.DE, China uses CSI 300 ETF 510300.SS. European and Chinese sector coverage requires correctly mapped series; do not interpret absent rows as zero. Unmapped sectors remain unscored.\n- **Daily charts:** one observation per trading day, using daily closing prices. With `auto_adjust=True`, the online provider adjusts historical prices for distributions and splits where data permit.
+    st.markdown('''- **Market selector:** US uses SPY, Europe uses officially classified STOXX Europe 600 ICB industry indices in CSV mode, China supports CSI 300 GICS-style sector CSV imports (and an optional 510300.SS ETF proxy mode). European and Chinese sector coverage requires correctly mapped series; do not interpret absent rows as zero. Unmapped sectors remain unscored.\n- **Daily charts:** one observation per trading day, using daily closing prices. With `auto_adjust=True`, the online provider adjusts historical prices for distributions and splits where data permit.
 - **Weekly rotation:** daily prices are sampled to **the last available trading close in each Friday-ending week**, avoiding fixed calendar-day assumptions around market holidays.
 - **4W / 13W:** weekly close divided by the close 4 or 13 completed weekly observations earlier, minus one.
 - **Relative return:** sector return minus SPY return in percentage points. **Rotation score:** 60% × 4-week relative return + 40% × 13-week relative return.

@@ -13,16 +13,20 @@ from ui_theme import plot
 
 GICS_11=["Information Technology","Financials","Healthcare","Consumer Discretionary",
 "Communication Services","Industrials","Consumer Staples","Energy","Utilities","Real Estate","Materials"]
-REGION_BENCHMARK={"United States":"SPY", "Europe":"EXSA.DE", "China (mainland A-shares)":"510300.SS"}
+REGION_BENCHMARK={"United States":"SPY", "Europe":"EU_STOXX600", "China (mainland A-shares)":"CN_CSI300"}
 # Conservative default coverage: source-aligned public ETFs, chosen from published Europe ETF mapping.
 # Unverified series stay absent. Official China codes are shown as *candidate* index references only.
 # Provider ticker support not guaranteed; users may map a licensed index series using CSV.
 REGION_SECTORS={
  "United States":dict(zip(GICS_11,["XLK","XLF","XLV","XLY","XLC","XLI","XLP","XLE","XLU","XLRE","XLB"])),
- "Europe":{"Information Technology":"EXH1.DE","Financials":None,"Healthcare":None,
-           "Consumer Discretionary":None,"Communication Services":None,"Industrials":"EXH4.DE",
-           "Consumer Staples":None,"Energy":None,"Utilities":None,"Real Estate":None,"Materials":None},
- "China (mainland A-shares)":dict.fromkeys(GICS_11,None)
+ "Europe":{
+   "Information Technology":"EU_S600_TECH", "Financials":"EU_S600_FIN",
+   "Healthcare":"EU_S600_HEALTH", "Consumer Discretionary":"EU_S600_DISC",
+   "Communication Services":"EU_S600_TELECOM", "Industrials":"EU_S600_IND",
+   "Consumer Staples":"EU_S600_STAPLES", "Energy":"EU_S600_ENERGY",
+   "Utilities":"EU_S600_UTIL", "Real Estate":"EU_S600_RE",
+   "Materials":"EU_S600_MATERIALS"},
+ "China (mainland A-shares)":{name:"CN_CSI300_"+slug for name,slug in zip(GICS_11,["TECH","FIN","HEALTH","DISC","COMM","IND","STAPLES","ENERGY","UTIL","RE","MATERIALS"])}
 }
 # 2007 official 10 CSI300 industry codes. Financials + real estate were grouped.
 # NOT inserted into the GICS 11 heatmap automatically; codes provided for research/import.
@@ -37,8 +41,8 @@ def make_catalog():
         for sector in GICS_11:
             ticker=REGION_SECTORS[region].get(sector)
             rows.append({"Region":region,"Sector":sector,"Ticker":ticker or "",
-                         "Coverage": "ETF price proxy" if ticker else "Needs approved sector series",
-                         "Notes": "Specify exact index/ETF and price basis; benchmark must be consistent"})
+                         "Coverage": ("STOXX industry index - import required" if region == "Europe" else ("CSI 300 GICS sector - import required" if region.startswith("China") else ("ETF price proxy" if ticker else "Needs approved sector series"))),
+                         "Notes": ("Local CSV identifier only, not a Yahoo ticker. Upload official STOXX Europe 600 ICB industry data, using a single return convention." if region == "Europe" else ("Custom CSV identifier, NOT an official CSI index code or Yahoo ticker. Import licensed CSI 300 constituent-based GICS sector levels with matching benchmark, dates, currency and price/total return conventions." if region.startswith("China") else "Specify exact index/ETF and price basis; benchmark must be consistent"))})
     return pd.DataFrame(rows)
 
 def read_catalog(upload):
@@ -87,7 +91,7 @@ def regional_weekly_scores(daily, catalog, period=4, exclude_unfinished=True, to
 
 def global_rotation_page(prices, catalog):
     st.subheader('Global sector rotation heatmap')
-    st.caption('Weekly returns versus **each region’s own benchmark** (US: SPY · Europe: STOXX Europe 600 ETF · China: CSI 300 ETF). '
+    st.caption('Weekly returns versus **each region’s own benchmark** (US: SPY · Europe: STOXX Europe 600 official index · China: CSI 300 local index levels). '
                'Missing cells mean no valid comparable series was loaded, not a zero return.')
     c1,c2=st.columns([1,2])
     with c1: weeks=st.selectbox('Weekly lookback',[1,4,8,13,26,52],index=1,format_func=lambda n:f'{n} weeks')
@@ -118,10 +122,14 @@ def mapping_page(catalog):
     st.warning('For a genuinely harmonized 11-sector comparison, provide **one licensed GICS-classified sector index per region and sector**, plus a matching benchmark. Public ETFs are only practical proxies.')
     st.dataframe(catalog,use_container_width=True,hide_index=True)
     st.download_button('Download editable 33-sector mapping CSV',catalog.to_csv(index=False).encode(),'sector_mapping.csv','text/csv')
+    st.markdown('**Europe: official STOXX Europe 600 ICB industry categories.** EU_S600_* identifiers are custom CSV labels, not exchange tickers. Import the matching authorized index levels and the EU_STOXX600 benchmark. 11 industry groups include **Telecommunications**, which is not identical to GICS Communication Services.')
+    st.markdown('**China: 11 GICS-style categories.** The CN_CSI300_* IDs are local CSV placeholders, not official published index codes. Source or reconstruct constituent-weighted sector levels with consistent point-in-time weights; do not treat the legacy combined Financials + Real Estate series as separate independent indices.')
+    st.download_button('Download China 11-sector CSV template', ('Date,Ticker,Close\n' + ''.join(f'2026-10-29,{t},\n' for t in ['CN_CSI300']+list(REGION_SECTORS['China (mainland A-shares)'].values()))).encode(), 'china_csi300_gics11_template.csv','text/csv')
     st.markdown('**China legacy CSI 300 index references** (official historical ten-sector scheme; combined Financials + Real Estate):')
     st.dataframe(pd.DataFrame([{'Index':k,'Candidate Yahoo symbol (verify)':v} for k,v in CHINA_LEGACY.items()]),hide_index=True)
     st.markdown('**Historical data licensing:** STOXX ordinarily provides only a short free history; longer STOXX sector index histories require a license. CSI index histories likewise may require a CSI / authorised-vendor agreement. The app does not redistribute licensed values.')
     st.markdown('**Official source references:** [STOXX download policies](https://www.stoxx.com/help) · [STOXX sector structure](https://stoxx.com/index/s600csv/) · [CSI 300 legacy index announcement](https://www.szse.cn/disclosure/notice/general/t20070611_499843.html) · [CSI data licensing overview](https://www.ciis.com.hk/hongkong/en/uploadfiles/202507/21/2025072109322370585011.pdf)')
+    st.download_button('Download Europe index CSV template', ('Date,Ticker,Close\n' + ''.join(f'2026-10-29,{t},\n' for t in ['EU_STOXX600']+list(REGION_SECTORS['Europe'].values()))).encode(), 'europe_stoxx_industry_template.csv','text/csv')
     st.download_button('Download empty sector-index price template', 'Date,Ticker,Close\n'.encode(), 'sector_index_prices_template.csv','text/csv')
     st.info('To complete coverage, download the mapping CSV, fill its empty Ticker fields with correctly classified provider symbols, '
             'upload that file in the sidebar, and include the corresponding daily prices in the CSV data upload or configure a licensed feed.')
