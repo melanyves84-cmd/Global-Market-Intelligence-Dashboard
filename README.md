@@ -111,3 +111,33 @@ An optional **CSI 300 ETF benchmark and selected proxies (online)** mode preserv
 ## Design B Plus — visual refinement
 
 This edition enhances the existing light dashboard with a clearer three-market summary strip, editorial typography, responsive spacing, softer chart panels, improved KPI cards, polished controls and restrained navy/blue visual hierarchy. Market figures are **not** invented in the summary strip; it identifies the benchmarks and data coverage only. All CSV pipelines, region mapping, weekly signals, download controls and market-data limitations remain unchanged.
+
+## Company Explorer (new)
+
+Open **Company Explorer** in the sidebar. Choose region, sector, company and 1M–5Y range, then optionally compare with four other companies and a region benchmark ETF proxy. Charts use **daily** adjusted closing prices when available via `yfinance`. With no external connection, upload CSV in `Date,Ticker,Close` format.
+
+The built-in company list is a **small illustrative search starter**, not the full 500/600/300 constituent universe and not a live membership feed. To load a real roster, upload a CSV with `Market,Sector,Company,Ticker` and optional `WeightPct,Subsector,Source,AsOf`. Download the template from the page. Weights are deliberately left blank unless supplied. Data licensing, historical index membership, corporate actions and exchange-specific symbol conventions must be checked with the provider. A sector's company weight is not interchangeable with its weight in the regional benchmark.
+
+No site code or secret keys should be included in uploaded CSV files; do not upload confidential employer materials to third-party hosting.
+
+## Automatic constituent lists (new)
+Company Explorer now defaults to fetching public current lists with a 24-hour cache:
+- US: `datasets/s-and-p-500-companies` public CSV; GICS sector and subsector are mapped. This is a Wikipedia-derived third-party snapshot, not an official index license.
+- Europe: Wikipedia STOXX Europe 600 constituent table with ICB sector mapped to 11 dashboard sectors. **Raw native tickers are not necessarily Yahoo Finance tickers**: use the exported roster to add verified exchange suffixes and upload it when you need daily price charts. ICB-to-GICS labels are broad comparisons only.
+- China: `yfiua/index-constituents` CSI 300 public CSV gives ticker and Chinese company name but **does not provide sector classifications or weights**. The unclassified companies appear in the coverage table, not under invented sectors. Enrich the downloaded roster with reliable sectors to enable filtering and comparisons.
+
+None of these free lists includes verified constituent weights. No index weight or contribution is calculated without data. Public sources may change format, disappear, lag index reviews or restrict automated use. The Company Explorer provides warnings and falls back to a CSV upload. Auto roster updates reflect current membership only, not past constituents; a five-year stock chart does not imply five-year index membership. Source timestamp denotes fetch date, NOT publisher's effective constituent date.
+
+### European Yahoo Finance ticker mapping
+
+The public STOXX Europe 600 list provides **native tickers and countries, not a verified exchange/Yahoo crosswalk**. `europe_tickers.py` supplies a *candidate* primary exchange suffix based on country (such as `.L`, `.DE`, `.PA`, `.AS`, `.SW`, `.MI`, `.MC`, `.ST`, `.CO`). Country is not a reliable identifier for dual listings and shares traded away from their home market. Treat all inferred symbols as **unverified** and confirm listing, company identity and share class. Unknown countries remain unmapped; they are not silently substituted by a US share.
+
+On the Company Explorer page, download the **European mapping CSV**, verify the Yahoo tickers, and upload it back as an override. The columns are `NativeTicker,Country,YahooTicker`. The original native ticker and mapping status are retained in the downloadable roster. On a market-data error, use the existing `Date,Ticker,Close` CSV mechanism.
+
+Yahoo Finance exchange suffix reference: https://help.yahoo.com/kb/SLN2310.html .  This is a free-source research convenience, **not** a licensed index-constituent or pricing feed.
+
+## Europe: documented ISIN / exchange mapping
+
+Open **Company Explorer → Europe → ISIN + exchange validation**. Download the template and supply `NativeTicker,ISIN,ExchangeMIC,YahooTicker,EvidenceURL,VerifiedAsOf`. Use the **exact security and share class**, and an issuer/exchange security record as evidence. The workbook validates ISIN structure/check digit, recognized ISO 10383 exchange MIC, suffix consistency and duplicates, but it cannot independently confirm that the supplied ISIN, exchange and Yahoo quote belong together. All mappings remain labelled as documented (not independently verified). Unverified country-derived ticker candidates are hidden by default from the European chart selector and can be enabled explicitly.
+
+Sources of record and security-identity confirmation may require a professional data provider. This feature does not grant access to such services or create current constituent weights.

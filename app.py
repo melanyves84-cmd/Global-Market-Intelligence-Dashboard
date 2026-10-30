@@ -9,6 +9,7 @@ import streamlit as st
 from sector_data import read_prices, weekly_completed
 from ui_theme import apply_theme, hero, plot, market_strip
 import extension
+from company_explorer import company_page
 from extension import (REGION_SECTORS, REGION_BENCHMARK, GICS_11, make_catalog, read_catalog, global_rotation_page, mapping_page)
 
 st.set_page_config(page_title="Global Sector Rotation",page_icon="📈",layout="wide")
@@ -127,7 +128,7 @@ with st.sidebar:
     benchmark=cfg['benchmark']
     source=st.radio('Source',['Yahoo Finance (online)','Upload daily CSV (offline)'],index=1 if (region=='Europe' and eu_mode.startswith('Official')) or (region.startswith('China') and cn_mode.startswith('CSI 300 GICS')) else 0)
     upload=st.file_uploader('CSV: Date,Ticker,Close',type='csv') if source.startswith('Upload') else None
-    page=st.radio('Page',['Global heatmap','Market overview','Sector history','Weekly rotation','Subsector explorer','Sector data catalog','Methodology'])
+    page=st.radio('Page',['Global heatmap','Market overview','Sector history','Weekly rotation','Subsector explorer','Company Explorer','Sector data catalog','Methodology'])
     mapping_file=st.file_uploader('Optional: sector mapping CSV',type='csv',key='mapping')
     try:
         catalog=read_catalog(mapping_file)
@@ -151,6 +152,10 @@ try:
         prices=import_csv(upload)
 except Exception as e:
     st.error(f'Data unavailable: {e}. Switch to CSV mode or verify network permission.')
+
+if page=='Company Explorer':
+    company_page()
+    st.stop()
 
 if page=='Sector data catalog':
     mapping_page(catalog)
