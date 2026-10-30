@@ -68,3 +68,14 @@ To import approved data:
 Important: STOXX sector indices use ICB classification and official CSI 300 legacy industries use 10 buckets, including combined financials/real estate. Full 11-sector harmonization requires licensed GICS-aligned provider series or a transparently specified constituent-and-weight methodology. **No fabricated missing-sector data is included.**
 
 Official references: https://www.stoxx.com/help ; https://stoxx.com/index/s600csv/ ; https://www.szse.cn/disclosure/notice/general/t20070611_499843.html ; https://www.ciis.com.hk/hongkong/en/uploadfiles/202507/21/2025072109322370585011.pdf
+
+## Design B — modern light dashboard
+
+This edition retains all existing market-data, import, heatmap, weekly rotation, and sector-history calculations while adding a consistent light design.
+
+- Theme: `.streamlit/config.toml` (light background, navy text, #215F9A blue accent).
+- Presentation components: `ui_theme.py` (header, sidebar, panels, chart styling).
+- Replace all repository files, including the hidden `.streamlit` directory, when updating the hosted app.
+- If GitHub's web uploader does not expose hidden folders easily, create `.streamlit/config.toml` through GitHub's **Add file → Create new file** path.
+- No market observations are bundled; the application requires Yahoo Finance retrieval or a user-supplied CSV.
+- The price data feed, data quality and licensed-coverage limitations of the prior edition still apply.

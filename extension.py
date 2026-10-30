@@ -9,6 +9,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 from sector_data import weekly_completed, series_quality
+from ui_theme import plot
 
 GICS_11=["Information Technology","Financials","Healthcare","Consumer Discretionary",
 "Communication Services","Industrials","Consumer Staples","Energy","Utilities","Real Estate","Materials"]
@@ -104,7 +105,7 @@ def global_rotation_page(prices, catalog):
                   zmin=-lim,zmax=lim,aspect='auto',text_auto=False)
     fig.update_traces(text=labels.to_numpy(),texttemplate='%{text}',hovertemplate='Sector: %{y}<br>Market: %{x}<br>Value: %{z:.2f}<extra></extra>')
     fig.update_layout(height=600,coloraxis_colorbar_title='pp' if show.startswith('Relative') else '%',xaxis_title='',yaxis_title='')
-    st.plotly_chart(fig,use_container_width=True)
+    plot(fig,use_container_width=True)
     st.caption('A sector proxy is not necessarily a constituent-matched sector index. Comparing relative returns across currencies avoids direct FX conversion of percentage returns, but not methodology differences.')
     covered=results[results.Coverage=='Available']
     st.metric('Covered sector cells',f'{len(covered)} / 33')

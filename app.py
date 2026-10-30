@@ -7,6 +7,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 from sector_data import read_prices, weekly_completed
+from ui_theme import apply_theme, hero, plot
 from extension import (REGION_SECTORS, REGION_BENCHMARK, GICS_11, make_catalog, read_catalog, global_rotation_page, mapping_page)
 
 st.set_page_config(page_title="Global Sector Rotation",page_icon="📈",layout="wide")
@@ -98,9 +99,11 @@ def signals(w, benchmark):
     frame['Trend']=np.select([frame['Rotation score (pp)']>2,frame['Rotation score (pp)']< -2],['Leading','Lagging'],default='Neutral')
     return frame
 
-st.title('Global Market Intelligence | Sector Rotation')
+apply_theme()
+hero()
 st.caption('Daily price charts · Weekly rotation signals · US / Europe / Mainland China · Region-local ETF pricing')
 with st.sidebar:
+    st.markdown('<div class="brand-sidebar">◈ GLOBAL <span>MARKETS</span></div>',unsafe_allow_html=True)
     st.header('Data & settings')
     region=st.selectbox('Market',list(REGIONS),index=0)
     cfg=REGIONS[region]
@@ -173,11 +176,15 @@ elif page=='Market overview':
             rows.append({'Sector':name,'ETF':tkr,'Return %':rets[tkr],'vs benchmark (pp)':rets[tkr]-bench})
     summary=pd.DataFrame(rows).sort_values('vs benchmark (pp)',ascending=False)
     if summary.empty: st.warning('No configured sector prices available. Upload region-specific ETF prices or try the online provider.'); st.stop()
+    m1,m2,m3=st.columns(3)
+    m1.metric('Tracked sectors',f'{len(summary)} / 11')
+    m2.metric('Local benchmark',f'{bench:+.2f}%' if pd.notna(bench) else 'N/A',help=f'{cfg["label"]} over the selected window')
+    m3.metric('Leading sectors',str(int((summary['vs benchmark (pp)']>0).sum())) if pd.notna(bench) else 'N/A')
     c1,c2=st.columns(2)
     with c1:
         fig=px.bar(summary,x='vs benchmark (pp)',y='Sector',orientation='h',color='vs benchmark (pp)',color_continuous_scale='RdBu',color_continuous_midpoint=0,title='Relative returns vs local market benchmark')
         fig.update_layout(yaxis={'categoryorder':'total ascending'},coloraxis_showscale=False)
-        st.plotly_chart(fig,use_container_width=True)
+        plot(fig,use_container_width=True)
     with c2:
         st.dataframe(summary.style.format({'Return %':'{:+.2f}','vs benchmark (pp)':'{:+.2f}'}),hide_index=True,use_container_width=True)
     st.caption('Performance uses adjusted prices where provided. This view is daily-price-based, while the separate rotation view uses weekly observations.')
@@ -199,7 +206,7 @@ elif page=='Sector history':
     fig=go.Figure()
     for t in cols: fig.add_trace(go.Scatter(x=indexed.index,y=indexed[t],name=t,mode='lines'))
     fig.update_layout(title=f'{region}: {sector} | Daily indexed performance (start=100)',xaxis_title='Trading date',yaxis_title='Indexed adjusted close',hovermode='x unified',height=520)
-    st.plotly_chart(fig,use_container_width=True)
+    plot(fig,use_container_width=True)
     st.download_button('Export selected daily chart data',chart.to_csv().encode(),'daily_sector_prices.csv','text/csv')
 
 elif page=='Weekly rotation':
@@ -219,7 +226,7 @@ elif page=='Weekly rotation':
     st.caption(f'Last completed weekly observation: {w.index[-1]:%d %b %Y}. Positive relative returns = outperformance, not proven fund inflows.')
     fig=px.bar(df,y='Sector',x='Rotation score (pp)',orientation='h',color='Rotation score (pp)',color_continuous_scale='RdBu',color_continuous_midpoint=0)
     fig.update_layout(yaxis={'categoryorder':'total ascending'},coloraxis_showscale=False,height=530)
-    st.plotly_chart(fig,use_container_width=True)
+    plot(fig,use_container_width=True)
     fmt={c:'{:+.2f}' for c in ['4W relative (pp)','13W relative (pp)','Rotation score (pp)']}
     fmt.update({'4W return':'{:.2%}','13W return':'{:.2%}','Weekly change':'{:.2%}'})
     st.dataframe(df.style.format(fmt),hide_index=True,use_container_width=True)
@@ -245,4 +252,4 @@ elif page=='Subsector explorer':
     series=subset[proxy].dropna()
     if series.empty: st.warning('No prices in selected window'); st.stop()
     fig=px.line(x=series.index,y=series/series.iloc[0]*100,labels={'x':'Trading date','y':'Indexed adjusted close'},title=f'{selected} · daily data')
-    st.plotly_chart(fig,use_container_width=True)
+    plot(fig,use_container_width=True)
