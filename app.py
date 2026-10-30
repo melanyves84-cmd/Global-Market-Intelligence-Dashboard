@@ -7,7 +7,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 from sector_data import read_prices, weekly_completed
-from ui_theme import apply_theme, hero, plot
+from ui_theme import apply_theme, hero, plot, market_strip
 import extension
 from extension import (REGION_SECTORS, REGION_BENCHMARK, GICS_11, make_catalog, read_catalog, global_rotation_page, mapping_page)
 
@@ -102,6 +102,7 @@ def signals(w, benchmark):
 
 apply_theme()
 hero()
+market_strip()
 st.caption('Daily price charts · Weekly rotation signals · US / Europe / Mainland China · Region-local ETF pricing')
 with st.sidebar:
     st.markdown('<div class="brand-sidebar">◈ GLOBAL <span>MARKETS</span></div>',unsafe_allow_html=True)
