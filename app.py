@@ -10,6 +10,7 @@ from sector_data import read_prices, weekly_completed
 from ui_theme import apply_theme, hero, plot, market_strip
 import extension
 from company_explorer import company_page
+from pattern_scanner import page as pattern_scanner_page
 from extension import (REGION_SECTORS, REGION_BENCHMARK, GICS_11, make_catalog, read_catalog, global_rotation_page, mapping_page)
 
 st.set_page_config(page_title="Global Sector Rotation",page_icon="📈",layout="wide")
@@ -128,7 +129,7 @@ with st.sidebar:
     benchmark=cfg['benchmark']
     source=st.radio('Source',['Yahoo Finance (online)','Upload daily CSV (offline)'],index=1 if (region=='Europe' and eu_mode.startswith('Official')) or (region.startswith('China') and cn_mode.startswith('CSI 300 GICS')) else 0)
     upload=st.file_uploader('CSV: Date,Ticker,Close',type='csv') if source.startswith('Upload') else None
-    page=st.radio('Page',['Global heatmap','Market overview','Sector history','Weekly rotation','Subsector explorer','Company Explorer','Sector data catalog','Methodology'])
+    page=st.radio('Page',['Global heatmap','Market overview','Sector history','Weekly rotation','Subsector explorer','Company Explorer','Ascending Triangle Scanner','Sector data catalog','Methodology'])
     mapping_file=st.file_uploader('Optional: sector mapping CSV',type='csv',key='mapping')
     try:
         catalog=read_catalog(mapping_file)
@@ -142,6 +143,10 @@ with st.sidebar:
     region_map=catalog[catalog.Region==region].set_index('Sector')['Ticker'].to_dict()
     sector_map={sector:(region_map.get(sector) or None) for sector in GICS_11}
     st.caption('China official-style mode requires licensed or reconstructed CSI 300 GICS-classified sector histories as CSV. CN_CSI300_* are local placeholders, not real market tickers. European official mode uses imported STOXX ICB industry index levels. EU_S600_* are CSV identifiers, not Yahoo tickers. Legacy ETF mode retains the previous proxy method. Never mix price-only index levels with dividend-adjusted ETF returns.')
+
+if page=='Ascending Triangle Scanner':
+    pattern_scanner_page()
+    st.stop()
 
 requested=list(dict.fromkeys([v for v in REGION_BENCHMARK.values() if not v.startswith(('EU_','CN_'))]+[t for t in catalog.Ticker.tolist() if t and not t.startswith(('EU_','CN_'))]+cfg['extra']+[t for t in sub_map.values() if t]))
 prices=pd.DataFrame()
